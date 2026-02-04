@@ -106,6 +106,7 @@ function formatMoneyColumns_(sh) {
 /**************** AUTH (CACHE TOKEN) ****************/
 function api_login(payload) {
   return safe_(() => {
+    ensureSheets_();
     const login = norm_(payload?.login);
     const senha = norm_(payload?.senha);
     if (!login || !senha) return { ok:false, message:'Informe login e senha.' };
@@ -188,6 +189,10 @@ function validatePayload_(p, profile) {
   p.area = norm_(p.area);
   p.mesAno = norm_(p.mesAno);
 
+  if (!/^(0[1-9]|1[0-2])\/\d{4}$/.test(p.mesAno)) {
+    throw new Error('Mês/Ano inválido. Use o formato MM/AAAA.');
+  }
+
   const allowedCongLower = profile.congregacoes.map(c => c.toLowerCase());
   if (!allowedCongLower.includes(p.congregacao.toLowerCase())) {
     throw new Error('Congregação inválida para este usuário.');
@@ -196,8 +201,11 @@ function validatePayload_(p, profile) {
     throw new Error('Área inválida para este usuário.');
   }
 
-  toDate_(p.dataInicial);
-  toDate_(p.dataFinal);
+  const dataInicial = toDate_(p.dataInicial);
+  const dataFinal = toDate_(p.dataFinal);
+  if (dataFinal.getTime() < dataInicial.getTime()) {
+    throw new Error('Data Final deve ser igual ou posterior à Data Inicial.');
+  }
 
   const moneyKeys = [
     ['dizimo','Dízimo'],
@@ -248,6 +256,7 @@ function calcFields_(payload) {
 /**************** CRUD ****************/
 function api_saveLancamento(payload) {
   return safe_(() => {
+    ensureSheets_();
     const auth = checkAuth_(payload?.token);
     if (!auth.ok) return { ok:false, message:'Sessão expirada. Faça login novamente.' };
 
@@ -290,6 +299,7 @@ function api_saveLancamento(payload) {
 
 function api_listLancamentos(payload) {
   return safe_(() => {
+    ensureSheets_();
     const auth = checkAuth_(payload?.token);
     if (!auth.ok) return { ok:false, message:'Sessão expirada. Faça login novamente.' };
 
@@ -344,6 +354,7 @@ function api_listLancamentos(payload) {
 
 function api_getLancamento(payload) {
   return safe_(() => {
+    ensureSheets_();
     const auth = checkAuth_(payload?.token);
     if (!auth.ok) return { ok:false, message:'Sessão expirada. Faça login novamente.' };
 
@@ -351,6 +362,8 @@ function api_getLancamento(payload) {
     if (!row || row < 2) return { ok:false, message:'Linha inválida.' };
 
     const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_DADOS);
+    const lastRow = sh.getLastRow();
+    if (row > lastRow) return { ok:false, message:'Linha inválida.' };
     const v = sh.getRange(row, 1, 1, 19).getValues()[0];
 
     const profile = auth.profile;
@@ -391,6 +404,7 @@ function api_getLancamento(payload) {
 
 function api_updateLancamento(payload) {
   return safe_(() => {
+    ensureSheets_();
     const auth = checkAuth_(payload?.token);
     if (!auth.ok) return { ok:false, message:'Sessão expirada. Faça login novamente.' };
 
@@ -398,6 +412,8 @@ function api_updateLancamento(payload) {
     if (!row || row < 2) return { ok:false, message:'Linha inválida.' };
 
     const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_DADOS);
+    const lastRow = sh.getLastRow();
+    if (row > lastRow) return { ok:false, message:'Linha inválida.' };
     const curr = sh.getRange(row, 1, 1, 19).getValues()[0];
 
     const profile = auth.profile;
@@ -448,6 +464,7 @@ function api_updateLancamento(payload) {
 
 function api_deleteLancamento(payload) {
   return safe_(() => {
+    ensureSheets_();
     const auth = checkAuth_(payload?.token);
     if (!auth.ok) return { ok:false, message:'Sessão expirada. Faça login novamente.' };
 
@@ -455,6 +472,8 @@ function api_deleteLancamento(payload) {
     if (!row || row < 2) return { ok:false, message:'Linha inválida.' };
 
     const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_DADOS);
+    const lastRow = sh.getLastRow();
+    if (row > lastRow) return { ok:false, message:'Linha inválida.' };
     const curr = sh.getRange(row, 1, 1, 19).getValues()[0];
 
     const profile = auth.profile;
@@ -482,6 +501,7 @@ function api_deleteLancamento(payload) {
 /**************** DASHBOARD + CHART ****************/
 function api_getDashboardBundle(payload) {
   return safe_(() => {
+    ensureSheets_();
     const auth = checkAuth_(payload?.token);
     if (!auth.ok) return { ok:false, message:'Sessão expirada. Faça login novamente.' };
 
@@ -581,6 +601,7 @@ function api_getDashboardBundle(payload) {
 /**************** PDF GENERATION ****************/
 function api_generatePdfForLancamento(payload) {
   return safe_(() => {
+    ensureSheets_();
     const auth = checkAuth_(payload?.token);
     if (!auth.ok) return { ok:false, message:'Sessão expirada. Faça login novamente.' };
 
@@ -588,6 +609,8 @@ function api_generatePdfForLancamento(payload) {
     if (!row || row < 2) return { ok:false, message:'Linha inválida.' };
 
     const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_DADOS);
+    const lastRow = sh.getLastRow();
+    if (row > lastRow) return { ok:false, message:'Linha inválida.' };
     const r = sh.getRange(row, 1, 1, 19).getValues()[0];
 
     const profile = auth.profile;

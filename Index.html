@@ -551,6 +551,26 @@
         inp.addEventListener('blur', () => normalizeMoney(inp));
       });
 
+      const ultimosContainer = document.getElementById('ultimosItems');
+      if (ultimosContainer) {
+        ultimosContainer.addEventListener('click', (event) => {
+          const btn = event.target.closest('button[data-action]');
+          if (!btn) return;
+          const action = btn.dataset.action;
+          const rowIndex = Number(btn.dataset.rowIndex || 0);
+          if (action === 'edit' && rowIndex) return editLancamento(rowIndex);
+          if (action === 'delete' && rowIndex) {
+            return askDelete(rowIndex, btn.dataset.cong || '', btn.dataset.mesAno || '');
+          }
+          if (action === 'pdf' && rowIndex) return gerarPdf(rowIndex);
+          if (action === 'view-pdf') {
+            const url = btn.dataset.url || '';
+            if (url) return openPdf(url);
+            return showAlert('PDF indisponível', 'Ainda não foi gerado PDF para este lançamento.');
+          }
+        });
+      }
+
       const token = localStorage.getItem(TOKEN_KEY);
       if (token) bootstrap(token);
     });
@@ -781,10 +801,9 @@
       const ini = it.dataInicial ? formatDatePT(new Date(it.dataInicial)) : '-';
       const fim = it.dataFinal ? formatDatePT(new Date(it.dataFinal)) : '-';
       const pdf = it.pdfUrl || '';
-
-      const viewBtn = pdf
-        ? `<button class="btnSmall" onclick="openPdf('${escapeAttr(pdf)}')">Ver PDF</button>`
-        : `<button class="btnSmall" onclick="showAlert('PDF indisponível','Ainda não foi gerado PDF para este lançamento.')">Ver PDF</button>`;
+      const viewBtn = `
+        <button class="btnSmall" data-action="view-pdf" data-url="${escapeAttr(pdf)}">Ver PDF</button>
+      `;
 
       return `
         <div class="itemRow card">
@@ -808,9 +827,9 @@
           </div>
 
           <div class="actions">
-            <button class="btnSmall primary" onclick="editLancamento(${it.rowIndex})">Editar</button>
-            <button class="btnSmall danger" onclick="askDelete(${it.rowIndex}, '${escapeAttr(it.congregacao)}', '${escapeAttr(it.mesAno || '')}')">Excluir</button>
-            <button class="btnSmall" onclick="gerarPdf(${it.rowIndex})">Baixar PDF</button>
+            <button class="btnSmall primary" data-action="edit" data-row-index="${it.rowIndex}">Editar</button>
+            <button class="btnSmall danger" data-action="delete" data-row-index="${it.rowIndex}" data-cong="${escapeAttr(it.congregacao)}" data-mes-ano="${escapeAttr(it.mesAno || '')}">Excluir</button>
+            <button class="btnSmall" data-action="pdf" data-row-index="${it.rowIndex}">Baixar PDF</button>
             ${viewBtn}
           </div>
         </div>
@@ -977,6 +996,23 @@
           return false;
         }
       }
+
+      const mesAno = document.getElementById('fMesAno').value.trim();
+      if (!/^(0[1-9]|1[0-2])\/\d{4}$/.test(mesAno)) {
+        showAlert('Mês/Ano inválido', 'Informe o Mês/Ano no formato MM/AAAA.');
+        return false;
+      }
+
+      const dataInicial = new Date(document.getElementById('fDataInicial').value);
+      const dataFinal = new Date(document.getElementById('fDataFinal').value);
+      if (isNaN(dataInicial.getTime()) || isNaN(dataFinal.getTime())) {
+        showAlert('Data inválida', 'Informe datas válidas para o período.');
+        return false;
+      }
+      if (dataFinal < dataInicial) {
+        showAlert('Período inválido', 'A Data Final deve ser igual ou posterior à Data Inicial.');
+        return false;
+      }
       const moneyCheck = [
         {label:'Dízimo', el:'fDizimo'},
         {label:'Ofertas', el:'fOfertas'},
@@ -1068,7 +1104,9 @@
       }[s]));
     }
     function escapeAttr(str){
-      return String(str).replace(/'/g, '&#039;').replace(/"/g, '&quot;');
+      return String(str).replace(/[&<>"']/g, s => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+      }[s]));
     }
   </script>
 </body>
